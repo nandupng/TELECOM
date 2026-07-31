@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-emerald-500 font-mono select-none">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGINT-SYS v2.8b | Telecom Surveillance Terminal</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: JetBrains Mono & Share Tech Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,700;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['"Share Tech Mono"', '"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            crt: {
+              green: '#00ff66',
+              darkgreen: '#003311',
+              amber: '#ffb000',
+              red: '#ff3333',
+              bg: '#080e0a'
+            }
+          },
+          boxShadow: {
+            'glow-green': '0 0 15px rgba(0, 255, 102, 0.35)',
+            'glow-amber': '0 0 15px rgba(255, 176, 0, 0.35)',
+            'glow-red': '0 0 15px rgba(255, 51, 51, 0.35)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Scanline Screen Effect */
+    .crt-overlay {
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.25) 50%
+      ), linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.03),
+        rgba(0, 255, 0, 0.01),
+        rgba(0, 0, 255, 0.03)
+      );
+      background-size: 100% 3px, 6px 100%;
+      pointer-events: none;
+    }
+
+    /* Screen Flicker */
+    @keyframes flicker {
+      0% { opacity: 0.98; }
+      50% { opacity: 1; }
+      52% { opacity: 0.94; }
+      54% { opacity: 0.99; }
+      80% { opacity: 0.97; }
+      100% { opacity: 0.98; }
+    }
+    .crt-flicker {
+      animation: flicker 0.15s infinite;
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #040906;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #00662b;
+      border-radius: 2px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00ff66;
+    }
+
+    /* Blinking Cursor */
+    .blink {
+      animation: blinker 1s cubic-bezier(0.5, 0, 1, 1) infinite;
+    }
+    @keyframes blinker {
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+
+<body class="h-full bg-black flex flex-col justify-between overflow-hidden crt-flicker p-2 md:p-4">
+  
+  <!-- CRT Overlay Grid -->
+  <div class="fixed inset-0 crt-overlay z-50 pointer-events-none"></div>
+
+  <!-- MAIN TERMINAL WRAPPER -->
+  <div class="relative flex-1 flex flex-col bg-[#050b07] border-2 border-emerald-600/60 rounded-lg shadow-glow-green overflow-hidden z-10">
+    
+    <!-- SYSTEM HEADER / NAVIGATION BAR -->
+    <header class="bg-emerald-950/80 border-b border-emerald-600/50 px-4 py-2.5 flex flex-wrap items-center justify-between text-xs md:text-sm">
+      <div class="flex items-center gap-3">
+        <span class="inline-block w-3 h-3 rounded-full bg-emerald-500 animate-pulse shadow-glow-green"></span>
+        <span class="font-bold tracking-widest text-emerald-400">SIGINT-SYS // TELECOM SURVEILLANCE v2.8b</span>
+        <span class="hidden sm:inline bg-emerald-900/60 text-emerald-300 px-2 py-0.5 rounded border border-emerald-700/50 text-[10px]">CLASSIFIED / TOP SECRET</span>
+      </div>
+
+      <!-- Interactive Browser URL Bar -->
+      <form onsubmit="handleUrlSubmit(event)" class="flex items-center bg-black/90 border border-emerald-700/80 rounded px-2 py-1 my-1 sm:my-0 w-full sm:w-auto min-w-[320px]">
+        <span class="text-emerald-700 mr-1.5 text-xs"><i class="fa-solid fa-globe"></i> https://sigint.internal/</span>
+        <input type="text" id="url-bar-input" value="index.php" class="bg-transparent text-emerald-300 font-bold text-xs focus:outline-none w-32 font-mono" placeholder="endpoint.php">
+        <button type="submit" class="ml-auto bg-emerald-900/80 hover:bg-emerald-700 text-emerald-300 text-[10px] px-2 py-0.5 rounded border border-emerald-700 transition-colors">
+          NAVIGATE
+        </button>
+      </form>
+
+      <div class="flex items-center gap-4 text-xs text-emerald-600">
+        <span id="system-clock">1988-10-24 04:12:09 UTC</span>
+        <button id="toggle-crt" onclick="toggleCRT()" class="hover:text-emerald-300 transition-colors" title="Toggle Scanline FX">
+          <i class="fa-solid fa-tv"></i> FX
+        </button>
+      </div>
+    </header>
+
+    <!-- ENDPOINT NAVIGATION BAR (Endpoints Hidden for Reconnaissance) -->
+    <nav class="bg-emerald-950/30 border-b border-emerald-900/60 px-4 py-1.5 flex items-center justify-between text-xs">
+      <div class="flex items-center gap-2">
+        <span class="text-emerald-700 font-bold"><i class="fa-solid fa-shield-halved"></i> RECON MODE:</span>
+        <span class="text-emerald-500 text-[11px]">Direct links hidden. Use the URL Bar above or external directory brute-forcing tools to locate routes.</span>
+      </div>
+
+      <button onclick="switchEndpoint('tools.php')" id="tab-tools.php" class="nav-tab text-emerald-600 hover:text-emerald-400 text-[11px] flex items-center gap-1.5">
+        <i class="fa-solid fa-flag"></i> Flag Submit
+      </button>
+    </nav>
+
+    <!-- MAIN VIEW CONTAINER -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-6 relative">
+      
+      <!-- ========================================================================= -->
+      <!-- ENDPOINT 1: INDEX.PHP (HOME / SYSTEM OVERVIEW & RECON TERMINAL) -->
+      <!-- ========================================================================= -->
+      <section id="view-index.php" class="endpoint-view space-y-6">
+        <!-- Site Description & Header Banner -->
+        <div class="border border-emerald-800/80 bg-emerald-950/30 p-5 rounded-lg space-y-3">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <h1 class="text-xl font-bold text-emerald-400 flex items-center gap-2">
+              <i class="fa-solid fa-satellite-dish text-emerald-400 animate-pulse"></i>
+              SIGINT TELECOM SURVEILLANCE & RECONNAISSANCE TERMINAL
+            </h1>
+            <span class="text-xs bg-emerald-900/80 text-emerald-300 border border-emerald-600 px-2 py-1 rounded font-mono">
+              CLASSIFIED // NODE-88
+            </span>
+          </div>
+          <p class="text-xs text-emerald-500 leading-relaxed">
+            Welcome to the Tactical Telecom Intelligence Terminal (SIGINT-SYS v2.8b). This system operates as an automated wiretap monitoring node intercepting voice, telemetry, and audio spectrum data from restricted telecommunication lines. Authorized operators utilize this terminal to audit user registers, monitor live channel intercepts, and extract signal intelligence.
+          </p>
+        </div>
+
+        <!-- Operational Status & Metrics Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-black/60 border border-emerald-900/80 p-4 rounded-lg space-y-1">
+            <div class="text-[10px] text-emerald-600 uppercase font-bold">System Status</div>
+            <div class="text-sm font-bold text-emerald-400 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+              ONLINE / MONITORING
+            </div>
+            <div class="text-[11px] text-emerald-600">Primary Intercept Node #04</div>
+          </div>
+
+          <div class="bg-black/60 border border-emerald-900/80 p-4 rounded-lg space-y-1">
+            <div class="text-[10px] text-emerald-600 uppercase font-bold">Active Wiretaps</div>
+            <div class="text-sm font-bold text-emerald-400">14 Channels Active</div>
+            <div class="text-[11px] text-emerald-600">1 Audio Pulse Intercept (#882)</div>
+          </div>
+
+          <div class="bg-black/60 border border-emerald-900/80 p-4 rounded-lg space-y-1">
+            <div class="text-[10px] text-emerald-600 uppercase font-bold">Access Protocol</div>
+            <div class="text-sm font-bold text-amber-400">RESTRICTED ROUTING</div>
+            <div class="text-[11px] text-emerald-600">Endpoint navigation hidden</div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- ENDPOINT 2: LOGIN.PHP (DECOY AUTHENTICATION PORTAL) -->
+      <!-- ========================================================================= -->
+      <section id="view-login.php" class="endpoint-view hidden space-y-6">
+        <div class="border border-emerald-800/60 bg-emerald-950/20 p-5 rounded-lg">
+          <h2 class="text-xl font-bold text-emerald-400 flex items-center gap-2">
+            <i class="fa-solid fa-lock text-emerald-400"></i> SECURE OPERATOR AUTHENTICATION (/login.php)
+          </h2>
+          <p class="text-xs text-emerald-600">
+            Restricted access portal for SIGINT command level operators.
+          </p>
+        </div>
+
+        <div class="max-w-md mx-auto border border-emerald-900/80 bg-black/80 p-6 rounded-lg space-y-4 shadow-glow-green">
+          <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs text-emerald-600 mb-1">OPERATOR ID / USERNAME</label>
+              <input type="text" id="login-username" value="admin" class="w-full bg-slate-950 border border-emerald-800 rounded px-3 py-2 text-xs text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono">
+            </div>
+            <div>
+              <label class="block text-xs text-emerald-600 mb-1">SECURITY ACCESS KEY</label>
+              <input type="password" id="login-password" value="••••••••••••" class="w-full bg-slate-950 border border-emerald-800 rounded px-3 py-2 text-xs text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono">
+            </div>
+
+            <div class="flex items-center justify-between text-[11px]">
+              <button type="button" onclick="showLoginHint()" class="text-amber-500 hover:underline">Need Help / Recon Hint?</button>
+            </div>
+
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-2 rounded text-xs transition-all shadow-glow-green">
+              AUTHENTICATE
+            </button>
+          </form>
+
+          <div id="login-feedback" class="hidden p-3 border rounded text-xs leading-relaxed"></div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- ENDPOINT 3: USER.PHP (SURVEILLANCE DATABASE & WIRETAP DIRECTORY) -->
+      <!-- ========================================================================= -->
+      <section id="view-user.php" class="endpoint-view hidden space-y-6">
+        <div class="border border-emerald-800/60 bg-emerald-950/20 p-5 rounded-lg flex justify-between items-center flex-wrap gap-2">
+          <div>
+            <h2 class="text-xl font-bold text-emerald-400 flex items-center gap-2">
+              <i class="fa-solid fa-users text-emerald-400"></i> INTERCEPTED TARGET DIRECTORY (/user.php)
+            </h2>
+            <p class="text-xs text-emerald-600">
+              Active telecom surveillance records and intercepted audio logs across tactical sectors.
+            </p>
+          </div>
+          <span class="bg-emerald-900/60 border border-emerald-700 text-emerald-300 text-xs px-3 py-1 rounded font-mono">
+            RECORDS: 3 LOADED
+          </span>
+        </div>
+
+        <div class="border border-emerald-900/80 bg-black/80 rounded-lg overflow-x-auto shadow-glow-green">
+          <table class="w-full text-left text-xs font-mono min-w-[500px]">
+            <thead class="bg-emerald-950/80 border-b border-emerald-800 text-emerald-400">
+              <tr>
+                <th class="p-3">TARGET ID</th>
+                <th class="p-3">CODENAME</th>
+                <th class="p-3">SECTOR / UNIT</th>
+                <th class="p-3">STATUS</th>
+                <th class="p-3">INTERCEPT LOGS</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-emerald-950 text-emerald-300">
+              <tr class="hover:bg-emerald-950/30">
+                <td class="p-3">#401</td>
+                <td class="p-3">Operative_Alpha</td>
+                <td class="p-3">Sector-7 (Comms)</td>
+                <td class="p-3"><span class="text-emerald-500">CLEARED</span></td>
+                <td class="p-3 text-emerald-700">No active audio</td>
+              </tr>
+              <tr class="hover:bg-emerald-950/30">
+                <td class="p-3">#402</td>
+                <td class="p-3">Analyst_Delta</td>
+                <td class="p-3">HQ Ops</td>
+                <td class="p-3"><span class="text-emerald-500">INACTIVE</span></td>
+                <td class="p-3 text-emerald-700">Logs archived</td>
+              </tr>
+              <tr class="bg-amber-950/20 border-l-4 border-l-amber-500 hover:bg-amber-950/30">
+                <td class="p-3 font-bold text-amber-400">#403</td>
+                <td class="p-3 font-bold text-amber-300">Operative_Vector</td>
+                <td class="p-3 text-amber-400">Restricted Wiretap</td>
+                <td class="p-3"><span class="bg-amber-900/80 text-amber-300 text-[10px] px-2 py-0.5 rounded border border-amber-600">FLAGGED</span></td>
+                <td class="p-3">
+                  <button onclick="openAudioPlayerModal()" class="bg-amber-600 hover:bg-amber-500 text-black font-bold text-[11px] px-3 py-1 rounded transition-all shadow-glow-amber flex items-center gap-1.5">
+                    <i class="fa-solid fa-play"></i> AUDIO INTERCEPT #882
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- ENDPOINT 4: TOOLS / FLAG SUBMISSION TERMINAL -->
+      <!-- ========================================================================= -->
+      <section id="view-tools.php" class="endpoint-view hidden space-y-6">
+        <div class="border border-emerald-800/60 bg-emerald-950/20 p-5 rounded-lg">
+          <h2 class="text-xl font-bold text-emerald-400 flex items-center gap-2">
+            <i class="fa-solid fa-flag text-emerald-400"></i> CTF FLAG VERIFICATION TERMINAL
+          </h2>
+          <p class="text-xs text-emerald-600">
+            Submit the secret flag once you have captured and extracted the signal from the intercepted audio.
+          </p>
+        </div>
+
+        <div class="max-w-xl mx-auto border border-emerald-900/80 bg-black/80 p-6 rounded-lg space-y-4 shadow-glow-green">
+          <!-- Flag Submission Form -->
+          <div class="text-xs font-bold text-emerald-400 border-b border-emerald-900 pb-2 flex justify-between items-center">
+            <span><i class="fa-solid fa-shield-halved mr-1"></i> SUBMIT CTF FLAG</span>
+            <span class="text-[10px] text-emerald-500 font-mono">CTF{...}</span>
+          </div>
+
+          <p class="text-xs text-emerald-600 leading-relaxed">
+            Once you analyze the audio intercept, submit the flag in the required format <code class="text-emerald-300 font-bold">CTF{secret_here}</code> or submit the raw secret string.
+          </p>
+
+          <form onsubmit="handleFlagSubmit(event)" class="space-y-3">
+            <div>
+              <label class="block text-xs text-emerald-600 mb-1">FLAG SOLUTION STRING</label>
+              <input type="text" id="flag-input" placeholder="CTF{YOUR_FLAG_HERE}" class="w-full bg-slate-950 border border-emerald-800 rounded px-3 py-2 text-xs text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono">
+            </div>
+
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-2 rounded text-xs transition-all shadow-glow-green">
+              VERIFY & SUBMIT FLAG
+            </button>
+          </form>
+
+          <div id="flag-feedback-box" class="hidden p-3 border rounded text-xs leading-relaxed"></div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- ENDPOINT 5: 404 NOT FOUND VIEW -->
+      <!-- ========================================================================= -->
+      <section id="view-404" class="endpoint-view hidden space-y-6">
+        <div class="border border-red-800/80 bg-red-950/30 p-8 rounded-lg text-center space-y-4">
+          <div class="text-4xl font-bold text-red-500 font-mono">404 - ENDPOINT NOT FOUND</div>
+          <p class="text-xs text-red-300 max-w-md mx-auto">
+            The requested target endpoint <span id="missing-path-display" class="font-bold underline text-white">/unknown</span> does not exist on this surveillance server or requires elevated clearance.
+          </p>
+          <div>
+            <button onclick="switchEndpoint('index.php')" class="bg-red-900 hover:bg-red-800 text-red-200 text-xs px-4 py-2 rounded border border-red-700">
+              Return to System Overview (index.php)
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- SYSTEM FOOTER & DEVTOOLS SIMULATOR -->
+    <footer class="bg-emerald-950/80 border-t border-emerald-900/80 px-4 py-2 flex flex-wrap items-center justify-between text-xs text-emerald-600">
+      <div class="flex items-center gap-4">
+        <span>STATUS: <span class="text-emerald-400 font-bold">MONITORING ACTIVE</span></span>
+        <button onclick="toggleInspectorModal()" class="hover:text-emerald-300 transition-colors text-[11px] underline">
+          <i class="fa-solid fa-code"></i> Open HTTP Inspector / Headers
+        </button>
+      </div>
+      <div>
+        <span>SIGINT TELECOM ARCHITECTURE &copy; 1988</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL 1: AUDIO INTERCEPT PLAYER & SYNTHESIZER (MORSE CODE) -->
+  <!-- ========================================================================= -->
+  <div id="audio-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center p-4 hidden">
+    <div class="bg-[#080f0b] border-2 border-amber-600/90 rounded-lg max-w-xl w-full p-5 space-y-4 shadow-glow-amber text-xs relative">
+      
+      <div class="flex justify-between items-center border-b border-amber-800/80 pb-2">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-radio text-amber-400 text-base animate-pulse"></i>
+          <span class="font-bold text-amber-400 text-sm">INTERCEPTED VOICEMAIL ANALYSIS (#882)</span>
+        </div>
+        <button onclick="closeAudioPlayerModal()" class="text-amber-600 hover:text-amber-300 text-base">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-1">
+        <div class="text-[11px] text-amber-600">SOURCE: <span class="text-amber-300">Target 403 (Operative_Vector)</span></div>
+        <div class="text-[11px] text-amber-600">FILE: <span class="text-amber-300">voicemail_dump_882.wav</span> (Synthesized Morse Pulse Audio)</div>
+      </div>
+
+      <!-- Real-time Oscilloscope / Waveform Visualizer Canvas -->
+      <div class="bg-black border border-amber-900 rounded p-2 relative h-32 flex flex-col justify-between overflow-hidden">
+        <canvas id="visualizer-canvas" class="w-full h-full block"></canvas>
+        <div id="audio-status-overlay" class="absolute inset-0 flex items-center justify-center bg-black/60 text-amber-400 font-bold text-xs pointer-events-none">
+          PRESS PLAY TO TRANSMIT AUDIO PULSE
+        </div>
+      </div>
+
+      <!-- Audio Controls -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-950/30 p-3 rounded border border-amber-900/60">
+        <div class="flex items-center gap-2">
+          <button id="play-audio-btn" onclick="toggleMorseAudio()" class="bg-amber-600 hover:bg-amber-500 text-black font-bold px-4 py-2 rounded flex items-center gap-2 transition-all shadow">
+            <i class="fa-solid fa-play" id="play-btn-icon"></i> <span id="play-btn-text">PLAY AUDIO</span>
+          </button>
+          <button onclick="stopMorseAudio()" class="bg-amber-950 hover:bg-amber-900 border border-amber-800 text-amber-300 px-3 py-2 rounded">
+            <i class="fa-solid fa-square"></i> STOP
+          </button>
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex justify-between text-[10px] text-amber-500">
+            <span>MORSE SPEED (WPM):</span>
+            <span id="wpm-val">15 WPM</span>
+          </div>
+          <input type="range" id="wpm-slider" min="8" max="25" value="15" onchange="updateMorseSettings()" class="w-full accent-amber-500 bg-slate-900">
+        </div>
+      </div>
+
+      <div class="border border-amber-900/60 bg-black/50 p-3 rounded text-[11px] space-y-1.5 text-amber-400/90">
+        <div class="font-bold text-amber-400 border-b border-amber-900 pb-1">ANALYST HINT & DECODING INSTRUCTIONS:</div>
+        <p>1. Listen to the high/low tone durations: Short beep = <strong class="text-amber-200 font-mono">. (Dit)</strong>, Long beep = <strong class="text-amber-200 font-mono">- (Dah)</strong>.</p>
+        <p>2. Listen closely and transcribe the Morse pattern sequence emitted by User #403's audio pulse.</p>
+        <p>3. Translate the Morse sequence into text, then submit the flag in <strong class="text-amber-300">CTF{...}</strong> format!</p>
+      </div>
+
+      <div class="flex justify-end">
+        <button onclick="closeAudioPlayerModal(); switchEndpoint('tools.php');" class="text-amber-400 hover:underline text-xs">
+          Open Flag Submission &rarr;
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL 2: HTTP INSPECTOR & DEVTOOLS SIMULATOR -->
+  <!-- ========================================================================= -->
+  <!-- MODAL 1: AUDIO INTERCEPT PLAYER & SYNTHESIZER -->
+  <!-- ========================================================================= -->
+  <div id="audio-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center p-4 hidden">
+    <div class="bg-[#080f0b] border-2 border-amber-600/90 rounded-lg max-w-xl w-full p-5 space-y-4 shadow-glow-amber text-xs relative">
+      
+      <div class="flex justify-between items-center border-b border-amber-800/80 pb-2">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-radio text-amber-400 text-base animate-pulse"></i>
+          <span class="font-bold text-amber-400 text-sm">INTERCEPTED VOICEMAIL ANALYSIS (#882)</span>
+        </div>
+        <button onclick="closeAudioPlayerModal()" class="text-amber-600 hover:text-amber-300 text-base">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-1">
+        <div class="text-[11px] text-amber-600">SOURCE: <span class="text-amber-300">Target 403 (Operative_Vector)</span></div>
+        <div class="text-[11px] text-amber-600">FILE: <span class="text-amber-300" id="audio-file-label">voicemail_dump_882.mp3</span></div>
+      </div>
+
+      <!-- Real-time Oscilloscope / Waveform Visualizer Canvas -->
+      <div class="bg-black border border-amber-900 rounded p-2 relative h-32 flex flex-col justify-between overflow-hidden">
+        <canvas id="visualizer-canvas" class="w-full h-full block"></canvas>
+        <div id="audio-status-overlay" class="absolute inset-0 flex items-center justify-center bg-black/60 text-amber-400 font-bold text-xs pointer-events-none">
+          PRESS PLAY TO START AUDIO INTERCEPT
+        </div>
+      </div>
+
+      <!-- HTML5 Audio Element for custom audio files -->
+      <audio id="custom-audio-player" class="hidden" onended="stopAudioPlayback()"></audio>
+
+      <!-- Audio Controls -->
+      <div class="flex items-center justify-between bg-amber-950/30 p-3 rounded border border-amber-900/60">
+        <div class="flex items-center gap-2">
+          <button id="play-audio-btn" onclick="toggleAudioPlayback()" class="bg-amber-600 hover:bg-amber-500 text-black font-bold px-4 py-2 rounded flex items-center gap-2 transition-all shadow">
+            <i class="fa-solid fa-play" id="play-btn-icon"></i> <span id="play-btn-text">PLAY AUDIO</span>
+          </button>
+          <button onclick="stopAudioPlayback()" class="bg-amber-950 hover:bg-amber-900 border border-amber-800 text-amber-300 px-3 py-2 rounded">
+            <i class="fa-solid fa-square"></i> STOP
+          </button>
+        </div>
+
+        <div class="text-right text-[11px] text-amber-500 font-mono" id="playback-status font-bold">
+          STATUS: READY
+        </div>
+      </div>
+
+      <div class="border border-amber-900/60 bg-black/50 p-3 rounded text-[11px] space-y-1.5 text-amber-400/90">
+        <div class="font-bold text-amber-400 border-b border-amber-900 pb-1">ANALYST HINT & DECODING INSTRUCTIONS:</div>
+        <p>1. Play and listen closely to the audio stream captured from Target #403.</p>
+        <p>2. Extract and decode the hidden content embedded in the recording using your preferred audio analysis tools.</p>
+        <p>3. Submit the extracted flag string on the <strong class="text-amber-300">/tools.php</strong> submission endpoint!</p>
+      </div>
+
+      <div class="flex justify-end">
+        <button onclick="closeAudioPlayerModal(); switchEndpoint('tools.php');" class="text-amber-400 hover:underline text-xs">
+          Open Flag Submission &rarr;
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL 2: HTTP INSPECTOR & DEVTOOLS SIMULATOR -->
+  <!-- ========================================================================= -->
+  <div id="inspector-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center p-4 hidden">
+    <div class="bg-[#080f0b] border border-emerald-600 rounded-lg max-w-2xl w-full p-5 space-y-4 shadow-glow-green text-xs">
+      <div class="flex justify-between items-center border-b border-emerald-900 pb-2">
+        <span class="font-bold text-emerald-400"><i class="fa-solid fa-code"></i> HTTP RESPONSE INSPECTOR (/user.php)</span>
+        <button onclick="toggleInspectorModal()" class="text-emerald-600 hover:text-emerald-300"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="bg-slate-950 p-3 border border-emerald-900 rounded font-mono text-[11px] space-y-2 text-emerald-400 overflow-x-auto">
+        <div class="text-emerald-600">// HTTP Response Headers for GET /user.php</div>
+        <div>HTTP/1.1 200 OK</div>
+        <div>Date: Fri, 31 Jul 2026 13:00:00 GMT</div>
+        <div>Server: Apache/2.4.41 (Unix) PHP/7.4.3</div>
+        <div>Set-Cookie: PHPSESSID=e8a931c828dfa32b1109; path=/</div>
+        <div>X-Surveillance-Notice: RESTRICTED-WIRETAP-DIRECTORY</div>
+        <div class="text-amber-400">X-CTF-Hint: Do not waste time on login.php. User #403 voicemail contains the audio intercept.</div>
+      </div>
+
+      <div class="bg-slate-950 p-3 border border-emerald-900 rounded font-mono text-[11px] space-y-1 text-emerald-500 overflow-x-auto">
+        <div class="text-emerald-600">// Raw HTML Snippet Comment inside user.php</div>
+        <div>&lt;!-- FLAG RECOVERY PIPELINE: --&gt;</div>
+        <div>&lt;!-- 1. Listen to User #403 audio intercept --&gt;</div>
+        <div>&lt;!-- 2. Decode the secret signal --&gt;</div>
+        <div>&lt;!-- 3. Submit solution as CTF{...} on tools.php --&gt;</div>
+      </div>
+
+      <div class="flex justify-end">
+        <button onclick="toggleInspectorModal()" class="bg-emerald-900 text-emerald-200 px-4 py-1.5 rounded hover:bg-emerald-800">Close Inspector</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* =========================================================================
+       CUSTOMIZABLE CTF CONFIGURATION
+       Modify the variables below to set your own custom flag and audio file.
+       ========================================================================= */
+    const CONFIG = {
+      // Set your custom flag here
+      flag: "CTF{your_custom_flag_here}",
+
+      // Path to your custom audio file (e.g., "audio/voicemail_882.mp3")
+      // If left empty, a synth tone oscillator is played as fallback.
+      audioUrl: "",
+
+      // Optional secret string/pattern if using synthesized tone generator fallback
+      synthText: "SECRET_SIGNAL"
+    };
+
+    // Audio Context & State
+    let audioCtx = null;
+    let isPlayingAudio = false;
+    let canvas, canvasCtx, animFrameId;
+
+    window.onload = function() {
+      updateClock();
+      setInterval(updateClock, 1000);
+      setupVisualizer();
+
+      // Configure custom audio element if provided
+      if (CONFIG.audioUrl) {
+        const player = document.getElementById('custom-audio-player');
+        player.src = CONFIG.audioUrl;
+        document.getElementById('audio-file-label').innerText = CONFIG.audioUrl;
+      }
+    };
+
+    // Clock display
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('system-clock').innerText = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+    }
+
+    // Endpoint Navigation Logic
+    function switchEndpoint(endpoint) {
+      // Normalize endpoint path
+      endpoint = endpoint.replace(/^\//, '').trim();
+      if (!endpoint) endpoint = 'index.php';
+
+      // Update URL Bar input text
+      const urlInput = document.getElementById('url-bar-input');
+      if (urlInput) urlInput.value = endpoint;
+
+      // Hide all views
+      document.querySelectorAll('.endpoint-view').forEach(view => {
+        view.classList.add('hidden');
+      });
+
+      // Target View Resolution
+      let targetView = document.getElementById('view-' + endpoint);
+      if (!targetView) {
+        targetView = document.getElementById('view-404');
+        const missingPathDisplay = document.getElementById('missing-path-display');
+        if (missingPathDisplay) missingPathDisplay.innerText = '/' + endpoint;
+      }
+
+      if (targetView) {
+        targetView.classList.remove('hidden');
+      }
+    }
+
+    function handleUrlSubmit(event) {
+      event.preventDefault();
+      const path = document.getElementById('url-bar-input').value;
+      switchEndpoint(path);
+    }
+
+    function handleLoginSubmit(event) {
+      event.preventDefault();
+      const feedback = document.getElementById('login-feedback');
+      const user = document.getElementById('login-username').value;
+
+      feedback.classList.remove('hidden');
+      feedback.className = "p-3 border rounded text-xs leading-relaxed bg-red-950/60 border-red-800 text-red-300";
+      feedback.innerHTML = `
+        <div class="font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> ACCESS DENIED (ERR_AUTH_502)</div>
+        <div>User <code class="text-white">${user}</code> login attempt logged to Security Audit.</div>
+        <div class="text-[11px] mt-1 text-red-400">Notice: No credentials stored in command console. Inspect public record dump at <strong class="underline cursor-pointer" onclick="switchEndpoint('user.php')">user.php</strong>.</div>
+      `;
+    }
+
+    function showLoginHint() {
+      const feedback = document.getElementById('login-feedback');
+      feedback.classList.remove('hidden');
+      feedback.className = "p-3 border rounded text-xs leading-relaxed bg-amber-950/60 border-amber-800 text-amber-300";
+      feedback.innerHTML = `
+        <div class="font-bold"><i class="fa-solid fa-lightbulb mr-1"></i> RECONNAISSANCE HINT:</div>
+        <div>This login form is a honeypot distraction! The flag is hidden inside an audio wiretap profile on <strong class="underline cursor-pointer" onclick="switchEndpoint('user.php')">user.php</strong>.</div>
+      `;
+    }
+
+    function openAudioPlayerModal() {
+      document.getElementById('audio-modal').classList.remove('hidden');
+    }
+
+    function closeAudioPlayerModal() {
+      stopAudioPlayback();
+      document.getElementById('audio-modal').classList.add('hidden');
+    }
+
+    function toggleInspectorModal() {
+      const modal = document.getElementById('inspector-modal');
+      modal.classList.toggle('hidden');
+    }
+
+    function toggleCRT() {
+      document.body.classList.toggle('crt-flicker');
+      const crtOverlay = document.querySelector('.crt-overlay');
+      if (crtOverlay) crtOverlay.classList.toggle('hidden');
+    }
+
+    /* =========================================================================
+       AUDIO PLAYBACK & SYNTHESIZER
+       ========================================================================= */
+
+    function toggleAudioPlayback() {
+      if (isPlayingAudio) {
+        stopAudioPlayback();
+      } else {
+        startAudioPlayback();
+      }
+    }
+
+    function startAudioPlayback() {
+      isPlayingAudio = true;
+      document.getElementById('play-btn-text').innerText = "PAUSE AUDIO";
+      document.getElementById('play-btn-icon').className = "fa-solid fa-pause";
+      document.getElementById('audio-status-overlay').classList.add('hidden');
+
+      const customPlayer = document.getElementById('custom-audio-player');
+
+      if (CONFIG.audioUrl && customPlayer) {
+        customPlayer.play().catch(e => {
+          console.log("Audio play error, falling back to tone synth:", e);
+          startToneSynth();
+        });
+      } else {
+        startToneSynth();
+      }
+
+      drawCanvasWaveform();
+    }
+
+    function startToneSynth() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      // Generate pulse tone
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 600;
+
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+
+      // Store oscillator instance on window for stopping
+      window.activeOsc = osc;
+    }
+
+    function stopAudioPlayback() {
+      isPlayingAudio = false;
+
+      const customPlayer = document.getElementById('custom-audio-player');
+      if (customPlayer) {
+        customPlayer.pause();
+        customPlayer.currentTime = 0;
+      }
+
+      if (window.activeOsc) {
+        try { window.activeOsc.stop(); } catch(e){}
+        window.activeOsc = null;
+      }
+
+      document.getElementById('play-btn-text').innerText = "PLAY AUDIO";
+      document.getElementById('play-btn-icon').className = "fa-solid fa-play";
+      document.getElementById('audio-status-overlay').classList.remove('hidden');
+
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+      }
+      clearCanvas();
+    }
+
+    /* =========================================================================
+       CANVAS VISUALIZER
+       ========================================================================= */
+
+    function setupVisualizer() {
+      canvas = document.getElementById('visualizer-canvas');
+      if (canvas) {
+        canvasCtx = canvas.getContext('2d');
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        clearCanvas();
+      }
+    }
+
+    function clearCanvas() {
+      if (!canvasCtx) return;
+      canvasCtx.fillStyle = '#000000';
+      canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+      canvasCtx.strokeStyle = '#331a00';
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(0, canvas.height / 2);
+      canvasCtx.lineTo(canvas.width, canvas.height / 2);
+      canvasCtx.stroke();
+    }
+
+    function drawCanvasWaveform() {
+      if (!isPlayingAudio) return;
+
+      canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+      canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+      canvasCtx.lineWidth = 2;
+      canvasCtx.strokeStyle = '#ffb000';
+      canvasCtx.beginPath();
+
+      const sliceWidth = canvas.width / 50;
+      let x = 0;
+
+      for (let i = 0; i < 50; i++) {
+        const v = Math.sin(Date.now() * 0.02 + i) * (Math.random() > 0.4 ? 0.8 : 0.1);
+        const y = (v * canvas.height / 3) + canvas.height / 2;
+
+        if (i === 0) {
+          canvasCtx.moveTo(x, y);
+        } else {
+          canvasCtx.lineTo(x, y);
+        }
+        x += sliceWidth;
+      }
+
+      canvasCtx.stroke();
+      animFrameId = requestAnimationFrame(drawCanvasWaveform);
+    }
+
+    /* =========================================================================
+       FLAG SUBMISSION LOGIC
+       ========================================================================= */
+
+    function handleFlagSubmit(event) {
+      event.preventDefault();
+      const input = document.getElementById('flag-input').value.trim();
+      const feedback = document.getElementById('flag-feedback-box');
+
+      feedback.classList.remove('hidden');
+
+      // Compare against configured flag
+      if (input.toLowerCase() === CONFIG.flag.toLowerCase()) {
+        feedback.className = "p-4 border rounded text-xs leading-relaxed bg-emerald-950/80 border-emerald-500 text-emerald-200 shadow-glow-green";
+        feedback.innerHTML = `
+          <div class="font-bold text-sm text-emerald-400 mb-1 flex items-center gap-2">
+            <i class="fa-solid fa-trophy text-amber-400 text-base"></i> CHALLENGE SOLVED! FLAG CONFIRMED
+          </div>
+          <div>Congratulations Operative! You extracted target #403's audio intercept and successfully submitted the correct flag.</div>
+          <div class="mt-2 p-2 bg-black/80 rounded border border-emerald-800 font-mono text-emerald-300">
+            FLAG: <strong>${CONFIG.flag}</strong>
+          </div>
+        `;
+      } else {
+        feedback.className = "p-3 border rounded text-xs leading-relaxed bg-red-950/60 border-red-800 text-red-300";
+        feedback.innerHTML = `
+          <div class="font-bold"><i class="fa-solid fa-xmark mr-1"></i> INVALID FLAG SUBMISSION</div>
+          <div>The submitted solution <code class="text-white">${input}</code> does not match the target flag.</div>
+          <div class="text-[11px] text-red-400 mt-1">Hint: Re-examine target #403's audio recording.</div>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>
